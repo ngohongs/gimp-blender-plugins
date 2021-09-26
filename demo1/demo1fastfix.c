@@ -51,7 +51,7 @@ static void query (void)
     "Jiri Chludil",
     "Copyright Jiri Chludil",
     "2016",
-    "_Inverse 1 s rychlou opravou (bez nahledu)...",
+    "_Inverse 1 rychlejsi s opravou (bez nahledu)...",
     "RGB*, GRAY*",
     GIMP_PLUGIN,
     G_N_ELEMENTS (args), 0,
