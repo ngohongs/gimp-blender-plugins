@@ -1,0 +1,353 @@
+:toc:
+
+# Convolution
+Plugin provádějící konvoluci - přesněji operace: zaostření (Gaussovo), rozostření, rozmazání, pixelizace. (podle zadaní Konvoluce 2)
+
+image:img/gallery.png[width=1000]
+
+### Specifikace pluginu
+* Python plugin pro GIMP 2.8.22 (poslední verze GIMP v balíčkovém manažeru Ubuntu 18.04)
+* Plugin obsahuje grafické rozhraní s parametrizovatenelnými filtry nebo umožňuje uživateli zadat vlastní jádro ve formě Python listu
+* Pracuje se soubory s kanály GRAY*, RGB*
+* Filtruje za pomocí Python modolů OpenCV a Numpy, které úpravu obrázku provádí efektivně jak časově, tak paměťově.
+
+## Uživatelská dokumentace
+
+### Instalace pro Linux (Ubuntu 18.04)
+
+1. Stáhnutí https://gitlab.fit.cvut.cz/BI-PGA/b211/ngohongs/blob/master/2D/convolution.py[zdrojového kódu^], příp. stažení https://gitlab.fit.cvut.cz/BI-PGA/b211/ngohongs/blob/master/2D/noninteractive.scm[skriptu^] pro spuštění v příkazové řádce.
+
+2. Verze 2.8.22 programu GIMP
+
+    sudo apt install gimp
+
+3. Instalace potřebných modulů OpenCV, Numpy
+
+    sudo apt install python-numpy
+
+    sudo apt install python-opencv
+
+4. Udělení práv pro spouštění pluginu
+   
+    cd <adresář s pluginem>
+
+    chmod +x convolution.py
+
+5. Přesunutí souboru convolution.py do složky s GIMP pluginy (typicky ~/.gimp-2.8/plug-ins)
+
+    cd <adresář s pluginem>
+
+    cp convolution.py ~/.gimp-2.8/plug-ins/convolution.py
+
+
+### Použití
+1. Nainstalovat plugin podle popisu výše
+2. Spustit GIMP
+3. Vytvoření obrázku nebo načtení obrázku k úpravě
+4. Spuštění pluginu lze skrze:
+
+    - a) grafické rozhraní Gimpu, v horní liště Plugins > Convolution,
+        - pamarametry: 
+            - druh filtru
+            - radius - síla efektu filtru nebo velikost jádra konvoluce (záleží na druhu filtru)
+            - řešení hran při konvoluci: přesnější definice https://vovkos.github.io/doxyrest-showcase/opencv/sphinx_rtd_theme/enum_cv_BorderTypes.html
+            - threshold - práh rozdílu Gaussova rozostření
+            - vlastní jádro - ve formátu Python listu, např. [[0,0,0],[0,1,0],[0,0,0]]
+
+    - b) nebo přes příkazovou řádku. Doporučuji si vytvořit scm skript, který vložíte do adresáře Gimp skriptů (typicky ~/.gimp-2.8/scripts)
+
+    # obecný skript
+    (define 
+        (<název příkazu> filename [<název parametru pluginu>[<název parametru pluginu>...]]) 
+            (let* ((image (car (gimp-file-load RUN-NONINTERACTIVE filename filename))) 
+                    (drawable (car (gimp-image-get-active-layer image)))
+                ) 
+        (<název, pod kterým je váš plugin registrovaný (znaky '_' nahraďte znakem '-')> RUN-NONINTERACTIVE image drawable [<název parametru pluginu>[<název parametru pluginu>...]]) 
+        (gimp-file-save RUN-NONINTERACTIVE image drawable filename filename) (gimp-image-delete image))
+        )
+
+    # noninteractive.scm
+    (define (conv filename filter radius edge threshold kernel) (let* ((image (car (gimp-file-load RUN-NONINTERACTIVE filename filename))) (drawable (car (gimp-image-get-active-layer image)))) (convolution-plugin-main RUN-NONINTERACTIVE image drawable filter radius edge threshold kernel) (gimp-file-save RUN-NONINTERACTIVE image drawable filename filename) (gimp-image-delete image)))
+
+    # obecné spuštění pluginu z příkazové řádky
+    $ gimp -i --verbose -b '(<název příkazu> <cesta k obrázku v uvozovkách> [<hodnota 1. parametru pluginu>[<hodnota 2. parametru pluginu>...]])'
+
+    # spuštění convolution.py z příkazové řádky 
+    # v případě, že daná operace nevyuživá daný parameter, zadejte místo tohoto parametru jeho nejnižší možnou hodnotu, pro parametr vlastní jádro '[[0,0,0],[0,1,0],[0,0,0]]'
+    # filtery:
+    #   1 - rozmazání, 2 - Gaussovo rozostření, 3 - Gaussovo zaostření, 4 - zaostření, 5 - vlastní jádro
+    # radius: 
+    #   hodnoty: 1 - 1024
+    # řešení hran obrázku:
+    #   0 - REFLECT 101, 1 - REFLECT, 2 - REPLICATE, 3 - ISOLATE
+    #   přesnější definice https://vovkos.github.io/doxyrest-showcase/opencv/sphinx_rtd_theme/enum_cv_BorderTypes.html
+    # threshold:
+    #   hodnoty: 1 - 255 (práh rozdílu Gaussova rozostření)
+    # vlastní jádro:
+    #   jádro napsané ve formě Python listu
+    $ gimp -i --verbose -b '(conv <cesta k souboru v uvozovkách> <filter> <radius> <řešení hran obrázku> <threshold pro Gaussovo zaostření> <vlastní jádro v uvozovkách>)'
+
+5. Zvolení operace a jeho parametrů
+6. Potvrdit tlačítkem OK
+
+image:img/menu.png[width=1000]
+
+## Technická dokumentace
+
+### Konvoluce
+Konvoluce nad 2D obrázky je operace, která pro každý pixel obrázku bere v potaz jeho sousední pixely. Výsledkem konvoluce jedno pixelu je vážený průměr jeho sousedů.
+
+image:img/convolution.png[]
+
+image:img/conv1.gif[]
+
+Vážený průměr je nad 2D obrázkem snado vypočítán pomocí konvolučního jádra. Jádrem postupně "překrýváme" jednotlivé pixely a každý prvek jádra vynásobíme hodnotou, kterou daný prvek jádra překryl. Výsledek pro daný pixel je pak suma všech pronásobených hodnot.
+
+image:img/conv2.gif[]
+
+V případě RGB obrázků se jednotlivé kanály konvolují samostaně.
+
+image:img/conv_rgb.png[]
+
+image:img/conv_rgb1.gif[]
+
+Zkonvoluvané kanály zpětně spojíme a dostáváme zkonvoluvaný RGB obrázek.
+
+image:img/conv_rgb2.gif[]
+
+### Řešení okrajů
+
+Problém ale nastává, když se snažíme vypočítat vážený průměr na okraji obrázku, protože jádro překrývá prázdný prostor. 
+
+image:img/conv_edge.gif[]
+
+Jak se má tento prostor vyplnit?
+
+Prázdný prostor může být vyplněn např. těmito způsoby:
+
+    * prázdnými pixely, vyplnit buňky nulami
+    * okraje obrázku přezrcadlit na prázdnou stranu
+    * krajní hodnoty obrázku opakovat
+
+Všechny tyto možnosti má plugin naimplementované.
+
+image:img/border.jpg[]
+
+## Kód
+
+### Funkce
+
+#### convolve():
+
+[source,python]
+----
+ def convolve(self, work_pixels):
+        """
+        Generic convolution filter
+
+        accepts work_pixels in format of cv2 image numpy array
+        """
+        return cv2.filter2D(work_pixels, -1, self.kernel_param, borderType=self.edge_param)
+----
+
+Generická funkce na konvoluci vlastním jádrem.
+
+#### box_blur():
+
+[source,python]
+----
+def box_blur(self, work_pixels):
+        """
+        Box blur filter 
+
+        average from the square (2 * int(self.radius_param) + 1) x (2 * int(self.radius_param) + 1)
+        """
+        s = 2 * int(self.radius_param) + 1
+        self.kernel_param = np.ones((s,s)) / (s * s)
+        return self.convolve(work_pixels)
+----
+
+Pro každý pixel vypočítá průměr jeho okolí.
+
+#### gaussian_blur():
+
+[source,python]
+----
+def gaussian_blur(self, work_pixels):
+        """
+        Gaussian blur 
+
+        blurs work_image (image in cv2 format numpy array) with gaussian kernel with size (2 * int(self.radius_param) + 1)
+        """
+        s = 2 * int(self.radius_param) + 1
+        return cv2.GaussianBlur(work_pixels, (s, s), 0, borderType=self.edge_param)
+----
+
+Provádí Gaussovo rozostření.
+
+#### gaussian_sharpen():
+
+[source,python]
+----
+def gaussian_sharpen(self, work_pixels):
+        """
+        Gaussian sharpen
+
+        inspired by https://www.websupergoo.com/helpie/default.htm?page=source%2F2-effects%2Funsharpmask.htm
+
+        sharpens the image by adding the difference of the original image and gaussian blurred image only when the difference exceeds the threshold  
+        """
+        blur = self.gaussian_blur(np.copy(work_pixels)).astype(np.uint8)
+        shape = work_pixels.shape
+        for x in range(shape[0]):
+            for y in range(shape[1]):
+                for z in range(shape[2]):
+                    if clamp(int(work_pixels[x,y,z]) - int(blur[x,y,z]), 0, 255) > self.threshold_param:
+                        work_pixels[x,y,z] = clamp(2 * int(work_pixels[x,y,z]) - int(blur[x,y,z]), 0, 255)
+        return work_pixels
+----
+
+Provádí Gaussovské zaostření. Nejprve vypočítá Gaussovo rozostření a následně ho porovnává s originálním obrázkem. V případě, že rozdíl překročí určitý práh, přičte rozdíl mezi hodnotou pixelu Gaussova rozostření a originálu. 
+
+#### sharpen():
+
+[source,python]
+----
+def sharpen(self, work_pixels):
+        """
+        Sharpen 
+
+        sharpens the image by adding edge detected image self.radius_param times
+        """
+
+        identity = np.array([[0,0,0],[0,1,0],[0,0,0]])
+        edge_detection = np.array([[0,-1,0],[-1,4,-1],[0,-1,0]])
+        self.kernel_param = identity + self.radius_param * edge_detection
+        return self.convolve(work_pixels)
+----
+
+Provádí zaostření pomocí detekování hran jádrem stem:[[[0,-1,0\],[-1,4,-1\],[0,-1,0\]\]]. Násobek výsledku detekce hran následně přičte k originálu.
+
+#### pixalate():
+
+[source,python]
+----
+def pixelate(self, work_pixels):
+        """
+        Pixelation
+
+        pixelates the image by resizing the original image down to (imageSize / self.radius_param) with linear interpolation
+        and then rescale it back to the original size with nearest interpolation
+        """
+        shape = work_pixels.shape
+        nw = int(shape[1] / self.radius_param)
+        nh = int(shape[0] / self.radius_param)
+        temp = cv2.resize(work_pixels, (nw, nh), interpolation=cv2.INTER_LINEAR)
+        return cv2.resize(temp, (shape[1], shape[0]), interpolation=cv2.INTER_NEAREST)
+----
+
+Provádí pixelizaci pomocí zmenšení obrázku a následném zvětšení. Obrázek se nejprve zmenší pomocí lineární interpolace a následně zvětší pomocí interpolace nejbližšího pixelu.
+
+#### create_dialog():
+
+[source,python]
+----
+def create_dialog(self):
+        self.dialog = gimpui.Dialog("Convolution", "covolution_dialog")
+
+        self.table = gtk.Table(6, 7, False)
+        self.table.set_row_spacings(8)
+        self.table.set_col_spacings(8)
+        self.table.show()
+
+        # arrange horizontally
+        self.dialog.vbox.hbox1 = gtk.HBox(True, 0)
+        self.dialog.vbox.hbox1.show()
+        self.dialog.vbox.pack_start(self.dialog.vbox.hbox1, False, False, 0)
+        self.dialog.vbox.hbox1.pack_start(self.table, True, True, 0)
+
+        # filter label
+        self.label_filter = gtk.Label("Filter:")
+        self.label_filter.show()
+        self.table.attach(self.label_filter, 1, 2, 1, 2)
+
+        # radius label
+        self.label_radius = gtk.Label("Radius:")
+        self.label_radius.show()
+        self.table.attach(self.label_radius, 1, 2, 2, 3)
+
+        # radius spin button
+        self.radius_adj = gtk.Adjustment(1.0, 1.0, 1024.0, 1.0, 5.0, 0.0)
+        self.radius_spin = gtk.SpinButton(self.radius_adj, 0, 0)
+        self.radius_spin.set_wrap(True)
+        self.radius_spin.show()
+        self.table.attach(self.radius_spin, 2, 3, 2, 3)
+
+        # threshold label
+        self.label_thres = gtk.Label("Threshold:")
+        self.label_thres.show()
+        self.table.attach(self.label_thres, 1, 2, 6, 7)
+
+        # threshold level
+        self.threshold_adj = gtk.Adjustment(1.0, 0.0, 255.0, 1.0, 1.0, 0)
+        self.threshold = gtk.HScale(self.threshold_adj)
+        self.threshold.set_digits(0)
+        self.threshold.set_value(1)
+        self.threshold.show()
+        self.table.attach(self.threshold, 2, 3, 6, 7)
+        
+        # custom kernel label
+        self.label_custom = gtk.Label("Custom kernel:")
+        self.label_custom.show()
+        self.table.attach(self.label_custom, 1, 2, 7, 8)
+
+        # custom kernel
+        self.textbox = gtk.Entry()
+        self.textbox.show()
+        self.table.attach(self.textbox, 2, 3, 7, 8)
+
+        # edge handling
+        self.label_edge = gtk.Label("Edge handling:")
+        self.label_edge.show()
+        self.table.attach(self.label_edge, 1, 2, 4, 5)
+
+        # drop down menu for choice of edge handling
+        self.combobox_edge = gtk.combo_box_new_text()
+        self.combobox_edge.append_text("Reflect 101")
+        self.combobox_edge.append_text("Replicate")
+        self.combobox_edge.append_text("Reflect")
+        self.combobox_edge.append_text("Isolated")
+        self.combobox_edge.connect("changed", self.edge_select)
+        self.combobox_edge.set_entry_text_column(0)
+        self.combobox_edge.set_active(0)
+        self.combobox_edge.show()
+        self.table.attach(self.combobox_edge, 2, 3, 4, 5)
+
+        # drop down menu for choice of filters
+        self.combobox_filter = gtk.combo_box_new_text()
+        self.combobox_filter.append_text("Box Blur")
+        self.combobox_filter.append_text("Gaussian Blur")
+        self.combobox_filter.append_text("Gaussian Sharpen")
+        self.combobox_filter.append_text("Sharpen")
+        self.combobox_filter.append_text("Pixelate")
+        self.combobox_filter.append_text("Custom kernel")
+        self.combobox_filter.connect("changed", self.filter_select)
+        self.combobox_filter.set_entry_text_column(0)
+        self.combobox_filter.set_active(0)
+        self.combobox_filter.show()
+        self.table.attach(self.combobox_filter, 2, 3, 1, 2)
+
+        # dialog buttons
+        self.cancel_button = self.dialog.add_button(gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL)
+        self.ok_button = self.dialog.add_button(gtk.STOCK_OK, gtk.RESPONSE_OK)
+        self.ok_button.connect("clicked", self.ok_clicked)
+----
+
+Vytváří dialog pro zvolení parametrů.
+
+## Zdroje
+
+* Konvoluce : https://omdena.com/blog/applying-cnns/
+* Konvoluce - animované : https://towardsdatascience.com/intuitively-understanding-convolutions-for-deep-learning-1f6f42faee1
+* Řešení okrajů : http://www.bim-times.com/opencv/3.3.0/d3/df2/tutorial_py_basic_ops.html
+

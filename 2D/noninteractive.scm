@@ -1,0 +1,1 @@
+(define (conv filename filter radius edge threshold kernel) (let* ((image (car (gimp-file-load RUN-NONINTERACTIVE filename filename))) (drawable (car (gimp-image-get-active-layer image)))) (convolution-plugin-main RUN-NONINTERACTIVE image drawable filter radius edge threshold kernel) (gimp-file-save RUN-NONINTERACTIVE image drawable filename filename) (gimp-image-delete image)))
