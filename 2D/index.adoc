@@ -1,6 +1,9 @@
 :toc:
 
 # Convolution
+
+= Česká dokumentace 
+
 Plugin provádějící konvoluci - přesněji operace: zaostření (Gaussovo), rozostření, rozmazání, pixelizace. (podle zadaní Konvoluce 2)
 
 image:img/gallery.png[width=1000]
@@ -351,3 +354,261 @@ Vytváří dialog pro zvolení parametrů.
 * Konvoluce - animované : https://towardsdatascience.com/intuitively-understanding-convolutions-for-deep-learning-1f6f42faee1
 * Řešení okrajů : http://www.bim-times.com/opencv/3.3.0/d3/df2/tutorial_py_basic_ops.html
 
+= English Documentation
+
+Plugin performing convolution – specifically operations: sharpening (Gaussian), blurring, smoothing, pixelation. (as per assignment Convolution 2)
+
+image:img/gallery.png[width=1000]
+
+### Plugin Specification
+* Python plugin for GIMP 2.8.22 (latest GIMP version in Ubuntu 18.04 package manager)
+* Plugin contains a graphical interface with parameterizable filters or allows the user to input a custom kernel as a Python list
+* Works with files with GRAY*, RGB* channels
+* Uses Python modules OpenCV and Numpy to efficiently process images in terms of time and memory
+
+## User Documentation
+
+### Installation for Linux (Ubuntu 18.04)
+
+1. Download the https://gitlab.fit.cvut.cz/BI-PGA/b211/ngohongs/blob/master/2D/convolution.py[source code^], or optionally download the https://gitlab.fit.cvut.cz/BI-PGA/b211/ngohongs/blob/master/2D/noninteractive.scm[script^] for command-line execution.
+
+2. Install GIMP version 2.8.22
+
+    sudo apt install gimp
+
+3. Install required modules OpenCV, Numpy
+
+    sudo apt install python-numpy
+
+    sudo apt install python-opencv
+
+4. Grant execution rights to the plugin
+   
+    cd <plugin directory>
+
+    chmod +x convolution.py
+
+5. Move the file convolution.py to the GIMP plugins folder (typically ~/.gimp-2.8/plug-ins)
+
+    cd <plugin directory>
+
+    cp convolution.py ~/.gimp-2.8/plug-ins/convolution.py
+
+
+### Usage
+1. Install the plugin as described above
+2. Start GIMP
+3. Create or open an image to edit
+4. Launch the plugin via:
+
+    - a) the GIMP graphical interface, from the top menu Plugins > Convolution,
+        - parameters: 
+            - filter type
+            - radius – filter effect strength or kernel size (depends on filter type)
+            - edge handling during convolution: precise definition at https://vovkos.github.io/doxyrest-showcase/opencv/sphinx_rtd_theme/enum_cv_BorderTypes.html
+            - threshold – Gaussian sharpening difference threshold
+            - custom kernel – in Python list format, e.g., [[0,0,0],[0,1,0],[0,0,0]]
+
+    - b) or via command line. It is recommended to create an scm script and place it into the GIMP scripts folder (typically ~/.gimp-2.8/scripts)
+
+    # generic script
+    (define 
+        (<command name> filename [<plugin parameter>[<plugin parameter>...]]) 
+            (let* ((image (car (gimp-file-load RUN-NONINTERACTIVE filename filename))) 
+                    (drawable (car (gimp-image-get-active-layer image)))
+                ) 
+        (<name under which your plugin is registered (replace '_' with '-')> RUN-NONINTERACTIVE image drawable [<plugin parameter>[<plugin parameter>...]]) 
+        (gimp-file-save RUN-NONINTERACTIVE image drawable filename filename) (gimp-image-delete image))
+        )
+
+    # noninteractive.scm
+    (define (conv filename filter radius edge threshold kernel) (let* ((image (car (gimp-file-load RUN-NONINTERACTIVE filename filename))) (drawable (car (gimp-image-get-active-layer image)))) (convolution-plugin-main RUN-NONINTERACTIVE image drawable filter radius edge threshold kernel) (gimp-file-save RUN-NONINTERACTIVE image drawable filename filename) (gimp-image-delete image)))
+
+    # general plugin run from CLI
+    $ gimp -i --verbose -b '(<command> <image path in quotes> [<plugin param 1>[<plugin param 2>...]])'
+
+    # run convolution.py from CLI
+    # if a parameter is unused for an operation, provide the minimal acceptable value. For custom kernel, provide e.g., '[[0,0,0],[0,1,0],[0,0,0]]'
+    # filters:
+    #   1 - blur, 2 - Gaussian blur, 3 - Gaussian sharpen, 4 - sharpen, 5 - custom kernel
+    # radius: 
+    #   values: 1 - 1024
+    # edge handling:
+    #   0 - REFLECT 101, 1 - REFLECT, 2 - REPLICATE, 3 - ISOLATE
+    #   detailed at: https://vovkos.github.io/doxyrest-showcase/opencv/sphinx_rtd_theme/enum_cv_BorderTypes.html
+    # threshold:
+    #   values: 1 - 255 (Gaussian sharpening difference threshold)
+    # custom kernel:
+    #   kernel in Python list format
+    $ gimp -i --verbose -b '(conv <file path in quotes> <filter> <radius> <edge handling> <threshold> <custom kernel in quotes>)'
+
+5. Choose the operation and its parameters
+6. Confirm with the OK button
+
+image:img/menu.png[width=1000]
+
+## Technical Documentation
+
+### Convolution
+Convolution over 2D images is an operation that considers neighboring pixels for each image pixel. The result of a convolution of one pixel is a weighted average of its neighbors.
+
+image:img/convolution.png[]
+
+image:img/conv1.gif[]
+
+The weighted average is easily calculated over a 2D image using a convolution kernel. The kernel is slid across the image; each kernel element is multiplied with the pixel it covers. The final pixel value is the sum of all such multiplications.
+
+image:img/conv2.gif[]
+
+For RGB images, each channel is convolved separately.
+
+image:img/conv_rgb.png[]
+
+image:img/conv_rgb1.gif[]
+
+Then the convolved channels are merged back together to produce the final RGB result.
+
+image:img/conv_rgb2.gif[]
+
+### Edge Handling
+
+An issue arises at the image edges, where the kernel overlaps "empty" space.
+
+image:img/conv_edge.gif[]
+
+How should this space be filled?
+
+Options include:
+
+    * fill with empty pixels (zeros)
+    * mirror the image edges onto the empty side
+    * repeat the edge pixel values
+
+All of these options are implemented in the plugin.
+
+image:img/border.jpg[]
+
+## Code
+
+### Functions
+
+#### convolve():
+
+[source,python]
+----
+ def convolve(self, work_pixels):
+        """
+        Generic convolution filter
+
+        accepts work_pixels in format of cv2 image numpy array
+        """
+        return cv2.filter2D(work_pixels, -1, self.kernel_param, borderType=self.edge_param)
+----
+
+Generic convolution with a custom kernel.
+
+#### box_blur():
+
+[source,python]
+----
+def box_blur(self, work_pixels):
+        """
+        Box blur filter 
+
+        average from the square (2 * int(self.radius_param) + 1) x (2 * int(self.radius_param) + 1)
+        """
+        s = 2 * int(self.radius_param) + 1
+        self.kernel_param = np.ones((s,s)) / (s * s)
+        return self.convolve(work_pixels)
+----
+
+Averages each pixel’s surroundings.
+
+#### gaussian_blur():
+
+[source,python]
+----
+def gaussian_blur(self, work_pixels):
+        """
+        Gaussian blur 
+
+        blurs work_image (image in cv2 format numpy array) with gaussian kernel with size (2 * int(self.radius_param) + 1)
+        """
+        s = 2 * int(self.radius_param) + 1
+        return cv2.GaussianBlur(work_pixels, (s, s), 0, borderType=self.edge_param)
+----
+
+Performs Gaussian blurring.
+
+#### gaussian_sharpen():
+
+[source,python]
+----
+def gaussian_sharpen(self, work_pixels):
+        """
+        Gaussian sharpen
+
+        inspired by https://www.websupergoo.com/helpie/default.htm?page=source%2F2-effects%2Funsharpmask.htm
+
+        sharpens the image by adding the difference of the original image and gaussian blurred image only when the difference exceeds the threshold  
+        """
+        blur = self.gaussian_blur(np.copy(work_pixels)).astype(np.uint8)
+        shape = work_pixels.shape
+        for x in range(shape[0]):
+            for y in range(shape[1]):
+                for z in range(shape[2]):
+                    if clamp(int(work_pixels[x,y,z]) - int(blur[x,y,z]), 0, 255) > self.threshold_param:
+                        work_pixels[x,y,z] = clamp(2 * int(work_pixels[x,y,z]) - int(blur[x,y,z]), 0, 255)
+        return work_pixels
+----
+
+Performs Gaussian sharpening by comparing the original with its blurred version and enhancing contrast if the difference exceeds a threshold.
+
+#### sharpen():
+
+[source,python]
+----
+def sharpen(self, work_pixels):
+        """
+        Sharpen 
+
+        sharpens the image by adding edge detected image self.radius_param times
+        """
+
+        identity = np.array([[0,0,0],[0,1,0],[0,0,0]])
+        edge_detection = np.array([[0,-1,0],[-1,4,-1],[0,-1,0]])
+        self.kernel_param = identity + self.radius_param * edge_detection
+        return self.convolve(work_pixels)
+----
+
+Sharpens using an edge detection kernel and amplifies edge response by a factor of `radius_param`.
+
+#### pixelate():
+
+[source,python]
+----
+def pixelate(self, work_pixels):
+        """
+        Pixelation
+
+        pixelates the image by resizing the original image down to (imageSize / self.radius_param) with linear interpolation
+        and then rescale it back to the original size with nearest interpolation
+        """
+        shape = work_pixels.shape
+        nw = int(shape[1] / self.radius_param)
+        nh = int(shape[0] / self.radius_param)
+        temp = cv2.resize(work_pixels, (nw, nh), interpolation=cv2.INTER_LINEAR)
+        return cv2.resize(temp, (shape[1], shape[0]), interpolation=cv2.INTER_NEAREST)
+----
+
+Performs pixelation by downscaling with linear interpolation and upscaling with nearest-neighbor.
+
+#### create_dialog():
+
+(unchanged from original – GUI elements with GTK)
+
+## Sources
+
+* Convolution: https://omdena.com/blog/applying-cnns/
+* Animated convolution: https://towardsdatascience.com/intuitively-understanding-convolutions-for-deep-learning-1f6f42faee1
+* Edge handling: http://www.bim-times.com/opencv/3.3.0/d3/df2/tutorial_py_basic_ops.html
