@@ -1,4 +1,4 @@
-# Hong Son Ngo
+# Graphics application plugins
 
 ## Plugins for a bitmap editor
 
