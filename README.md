@@ -1,24 +1,24 @@
-# Hong Son Ngo - BI-PGA
+# Hong Son Ngo
 
-## Semestrální práce v bitmapovém editoru
+## Plugins for a bitmap editor
 
-### Konvoluce
+### Gimp filters
 
 ![Galerie](2D/img/menu.png)
 
-* [dokumentace](2D/index.adoc)
+* [documentation](2D/index.adoc)
 
-## Semestrální práce v 3D editoru
+## Plugins for 3D editor
 
-### Generování fráktálních objektů
+### Fractal generator for Blender
 
 ![Fraktál](3D/img/color_wireframe_icosphere.png)
 
-* [dokumentace](3D/index.adoc)
+* [documentation](3D/index.adoc)
 
-### Vlastní téma - načítání terénu skrz formát .XYZ v nepravidelné trojúhelníkové síti (TIN)
+### Terrain modelling by converting terrain point cloud in .XYZ format into a triangulated irregular network (TIN)
 
 ![DMR_load](custom_project/doc/tin_load.gif)
 
-* [dokumentace](custom_project/README.md)
+* [documentation](custom_project/README.md)
 
